@@ -28,6 +28,8 @@ model BillingLineItem {
   lineItemId    String   @map("line_item_id")
   /// First day of the billing month (e.g. 2026-06-01).
   billingPeriod DateTime @map("billing_period") @db.Date
+  /// Billing month as 'YYYY-MM' (e.g. "2026-06") — easy month filtering for NL queries.
+  billingMonth  String   @map("billing_month")
   /// When the metered usage started.
   usageStart    DateTime @map("usage_start") @db.Timestamptz(3)
   /// When the metered usage ended.
@@ -47,7 +49,8 @@ model BillingLineItem {
   /// Friendly service name, e.g. "Amazon Elastic Compute Cloud".
   serviceName      String? @map("service_name")
   /// Coarse category for "compute vs storage vs database" questions:
-  /// compute | storage | database | network | analytics | ml | other.
+  /// compute | storage | database | network | analytics | ml | security |
+  /// management | savings_plan | other.
   serviceGroup     String  @map("service_group")
   /// CUR product family, e.g. "Compute Instance", "Storage", "Database Instance".
   productFamily    String? @map("product_family")
@@ -61,6 +64,10 @@ model BillingLineItem {
   // ── Charge detail ──
   /// CUR line_item_type: Usage | Tax | Credit | Refund | Fee | DiscountedUsage | SavingsPlanCoveredUsage ...
   chargeType  String  @map("charge_type")
+  /// Coarse bucket over charge_type for NL queries:
+  /// usage | savings_plan | tax | credit | refund | fee | other.
+  /// Net bill = SUM(unblended_cost) over ALL categories.
+  chargeCategory String @map("charge_category")
   /// Usage type code, e.g. "BoxUsage:t3.medium".
   usageType   String? @map("usage_type")
   /// API operation, e.g. "RunInstances".
@@ -94,8 +101,11 @@ model BillingLineItem {
   @@index([usageStart])
   @@index([usageDate])
   @@index([billingPeriod])
+  @@index([billingMonth])
   @@index([serviceCode])
   @@index([serviceGroup])
+  @@index([chargeCategory])
+  @@index([region])
   @@index([usageAccountId])
   @@index([environment])
   @@index([team])
