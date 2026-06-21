@@ -67,10 +67,11 @@ cost-bird/                  ← Next.js app at root (Vercel builds this)
 
 ## Checkpoints
 
-- [ ] **CP0 — Foundation & tooling** → `00-foundation.md`
+- [x] **CP0 — Foundation & tooling** → `00-foundation.md`
   Single Next.js project scaffold (TypeScript, Tailwind, App Router), pnpm + Node
   pinned, local Docker Postgres for dev, `.env` wired (Supabase pooled/direct URLs,
-  AWS, Anthropic, Slack), Vercel-ready.
+  AWS, Anthropic, Slack), Vercel-ready. _Done on branch `chore/single-nextjs-foundation`;
+  verified install/generate/typecheck/build/migrate/read-only-role._
 
 - [ ] **CP1 — Data model (Postgres + Prisma)** → `01-data-model.md`
   Normalized `billing_line_item` + `ingestion_run` schema (NL→SQL friendly),
@@ -96,14 +97,15 @@ cost-bird/                  ← Next.js app at root (Vercel builds this)
 
 ---
 
-## Current status (2026-06-14)
+## Current status (2026-06-21)
 
-- Repo `git init` done. `.env` present with AWS creds + CUR S3 bucket/prefix +
-  region (`us-east-1`).
-- Architecture revised: **single Next.js project on Vercel** (was a pnpm monorepo),
-  **Supabase** Postgres for prod, **GitHub Actions cron** for ETL + weekly Slack —
-  goal is a fully free POC deployment.
-- Nothing scaffolded into code yet beyond `dev-plans/`.
+- **CP0 done** on branch `chore/single-nextjs-foundation` (2 commits ahead of `main`):
+  single Next.js project at root, Prisma 7 (pg driver adapter + prisma.config.ts),
+  local Docker Postgres, initial migration, read-only role. Build + typecheck green.
+- **Pending:** no git remote yet → CP0 PR (branch → `main`) can't be opened until the
+  repo is pushed to GitHub.
+- `.env` has AWS creds + CUR S3 bucket/prefix + region (`us-east-1`); Anthropic +
+  Slack keys still blank (needed at CP3 / CP5).
 
-> Next: flesh out the per-checkpoint plan files, starting with `00-foundation.md`
-> and `01-data-model.md`, before continuing to build.
+> Next: open the CP0 PR once a remote exists, then write `01-data-model.md` and start
+> CP1 (the schema is already drafted; CP1 formalizes + seeds it).
