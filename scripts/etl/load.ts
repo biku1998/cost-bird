@@ -12,9 +12,12 @@ function toLibpqDsn(url: string): string {
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
   };
+  // Preserve connection options (e.g. sslmode=require for Supabase).
+  for (const [k, v] of u.searchParams) parts[k] = v;
+  // libpq keyword/value format: single-quote every value, escape \ and '.
   return Object.entries(parts)
     .filter(([, v]) => v)
-    .map(([k, v]) => `${k}=${v}`)
+    .map(([k, v]) => `${k}='${v.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`)
     .join(" ");
 }
 
@@ -32,7 +35,9 @@ export async function loadCur(
   try {
     await con.run("SET TimeZone = 'UTC';");
     await con.run("INSTALL postgres; LOAD postgres;");
-    await con.run(`ATTACH '${toLibpqDsn(directDbUrl)}' AS pg (TYPE postgres);`);
+    // The DSN is itself a SQL string literal here, so escape its single quotes ('').
+    const dsn = toLibpqDsn(directDbUrl).replace(/'/g, "''");
+    await con.run(`ATTACH '${dsn}' AS pg (TYPE postgres);`);
 
     const monthsRes = await con.runAndReadAll(billingMonthsSql(SRC));
     const billingMonths = monthsRes
@@ -40,14 +45,30 @@ export async function loadCur(
       .map((r) => String(r.m))
       .filter((m) => m && m !== "null");
 
-    if (billingMonths.length > 0) {
-      const inList = billingMonths.map((m) => `'${m}'`).join(", ");
-      await con.run(
-        `DELETE FROM pg.public.billing_line_item WHERE billing_month IN (${inList});`,
-      );
+    // These months are interpolated into the IN-list below, so constrain them to
+    // the expected YYYY-MM shape (also catches a malformed partition value).
+    for (const m of billingMonths) {
+      if (!/^\d{4}-\d{2}$/.test(m)) {
+        throw new Error(`Unexpected billing_month value from source: "${m}"`);
+      }
     }
 
-    await con.run(buildInsertSelect(SRC, runId));
+    // Replace-by-period atomically: if the insert fails, the delete is rolled back
+    // so we never leave a month's data missing.
+    await con.run("BEGIN TRANSACTION;");
+    try {
+      if (billingMonths.length > 0) {
+        const inList = billingMonths.map((m) => `'${m}'`).join(", ");
+        await con.run(
+          `DELETE FROM pg.public.billing_line_item WHERE billing_month IN (${inList});`,
+        );
+      }
+      await con.run(buildInsertSelect(SRC, runId));
+      await con.run("COMMIT;");
+    } catch (err) {
+      await con.run("ROLLBACK;");
+      throw err;
+    }
 
     const cntRes = await con.runAndReadAll(
       `SELECT count(*) AS n FROM pg.public.billing_line_item WHERE ingestion_run_id = '${runId}';`,

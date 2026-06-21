@@ -32,14 +32,19 @@ async function main() {
       `✅ loaded ${rowsLoaded} rows for ${billingMonths.join(", ") || "(no periods)"}`,
     );
   } catch (err) {
-    await prisma.ingestionRun.update({
-      where: { id: run.id },
-      data: {
-        status: "failed",
-        error: err instanceof Error ? err.message : String(err),
-        completedAt: new Date(),
-      },
-    });
+    // Record the failure, but never let a bookkeeping error mask the root cause.
+    try {
+      await prisma.ingestionRun.update({
+        where: { id: run.id },
+        data: {
+          status: "failed",
+          error: err instanceof Error ? err.message : String(err),
+          completedAt: new Date(),
+        },
+      });
+    } catch (updateErr) {
+      console.error("Failed to mark ingestion_run as failed:", updateErr);
+    }
     throw err;
   } finally {
     await prisma.$disconnect();
