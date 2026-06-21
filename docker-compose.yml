@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: cost-bird-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: costbird
+      POSTGRES_PASSWORD: costbird
+      POSTGRES_DB: costbird
+    ports:
+      - "5432:5432"
+    volumes:
+      - cost-bird-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U costbird -d costbird"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cost-bird-pgdata:
