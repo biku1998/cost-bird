@@ -12,13 +12,13 @@ export async function createCurConnection(): Promise<DuckDBConnection> {
   await connection.run("INSTALL httpfs;");
   await connection.run("LOAD httpfs;");
 
-  // Scoped S3 secret (DuckDB Secrets Manager) — keeps creds out of SQL logs.
+  // Resolve credentials via the standard AWS chain (env vars / shared config /
+  // instance role) instead of embedding keys in the SQL string. The ETL's env
+  // (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) is picked up here automatically.
   await connection.run(`
     CREATE OR REPLACE SECRET cur_s3 (
       TYPE s3,
-      PROVIDER config,
-      KEY_ID '${env.AWS_ACCESS_KEY_ID}',
-      SECRET '${env.AWS_SECRET_ACCESS_KEY}',
+      PROVIDER credential_chain,
       REGION '${env.AWS_REGION}'
     );
   `);

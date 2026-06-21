@@ -99,13 +99,12 @@ cost-bird/                  ← Next.js app at root (Vercel builds this)
 
 ## Current status (2026-06-21)
 
-- **CP0 done** on branch `chore/single-nextjs-foundation` (2 commits ahead of `main`):
-  single Next.js project at root, Prisma 7 (pg driver adapter + prisma.config.ts),
-  local Docker Postgres, initial migration, read-only role. Build + typecheck green.
-- **Pending:** no git remote yet → CP0 PR (branch → `main`) can't be opened until the
-  repo is pushed to GitHub.
+- **CP0 done** on branch `chore/single-nextjs-foundation`: single Next.js project at
+  root, Prisma 7 (pg driver adapter + prisma.config.ts), local Docker Postgres,
+  initial migration, read-only role. Build + typecheck green. **PR open → `main`**
+  (origin `biku1998/cost-bird`), in review.
 - `.env` has AWS creds + CUR S3 bucket/prefix + region (`us-east-1`); Anthropic +
   Slack keys still blank (needed at CP3 / CP5).
 
-> Next: open the CP0 PR once a remote exists, then write `01-data-model.md` and start
-> CP1 (the schema is already drafted; CP1 formalizes + seeds it).
+> Next: land the CP0 PR, then write `01-data-model.md` and start CP1 (the schema is
+> already drafted; CP1 formalizes + seeds it).

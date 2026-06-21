@@ -19,6 +19,17 @@ function parse(url: string) {
   };
 }
 
+// Role and database names are interpolated into DDL (Postgres can't parameterize
+// identifiers), so reject anything that isn't a plain Postgres identifier.
+function assertIdentifier(name: string, label: string): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(
+      `Unsafe Postgres identifier for ${label}: "${name}". ` +
+        `Expected /^[a-zA-Z_][a-zA-Z0-9_]*$/.`,
+    );
+  }
+}
+
 async function main() {
   const ro = parse(DATABASE_URL_READONLY);
   const admin = parse(DATABASE_URL);
@@ -30,6 +41,9 @@ async function main() {
     );
     return;
   }
+
+  assertIdentifier(ro.user, "DATABASE_URL_READONLY role");
+  assertIdentifier(admin.database, "DATABASE_URL database");
 
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();

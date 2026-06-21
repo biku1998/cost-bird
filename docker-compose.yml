@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: costbird
       POSTGRES_DB: costbird
     ports:
-      - "5432:5432"
+      # Bind to localhost only — not exposed on the LAN.
+      - "127.0.0.1:5432:5432"
     volumes:
       - cost-bird-pgdata:/var/lib/postgresql/data
     healthcheck:

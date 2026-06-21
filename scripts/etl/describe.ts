@@ -7,25 +7,27 @@ import { createCurConnection } from "./duckdb";
 
 async function main() {
   const con = await createCurConnection();
-  console.log(`Reading: ${curParquetGlob}\n`);
+  try {
+    console.log(`Reading: ${curParquetGlob}\n`);
 
-  const src = `read_parquet('${curParquetGlob}', union_by_name = true, hive_partitioning = true)`;
+    const src = `read_parquet('${curParquetGlob}', union_by_name = true, hive_partitioning = true)`;
 
-  const schema = await con.runAndReadAll(`DESCRIBE SELECT * FROM ${src};`);
-  const cols = schema.getRowObjectsJson();
-  console.log(`=== ${cols.length} columns ===`);
-  for (const c of cols) {
-    console.log(`${String(c.column_name).padEnd(48)} ${c.column_type}`);
+    const schema = await con.runAndReadAll(`DESCRIBE SELECT * FROM ${src};`);
+    const cols = schema.getRowObjectsJson();
+    console.log(`=== ${cols.length} columns ===`);
+    for (const c of cols) {
+      console.log(`${String(c.column_name).padEnd(48)} ${c.column_type}`);
+    }
+
+    const count = await con.runAndReadAll(`SELECT count(*) AS n FROM ${src};`);
+    console.log(`\n=== row count ===\n${count.getRowObjectsJson()[0]?.n}`);
+
+    const sample = await con.runAndReadAll(`SELECT * FROM ${src} LIMIT 1;`);
+    console.log(`\n=== sample row ===`);
+    console.log(JSON.stringify(sample.getRowObjectsJson()[0], null, 2));
+  } finally {
+    con.closeSync();
   }
-
-  const count = await con.runAndReadAll(`SELECT count(*) AS n FROM ${src};`);
-  console.log(`\n=== row count ===\n${count.getRowObjectsJson()[0]?.n}`);
-
-  const sample = await con.runAndReadAll(`SELECT * FROM ${src} LIMIT 1;`);
-  console.log(`\n=== sample row ===`);
-  console.log(JSON.stringify(sample.getRowObjectsJson()[0], null, 2));
-
-  con.closeSync();
 }
 
 main().catch((err) => {

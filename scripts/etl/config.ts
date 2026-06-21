@@ -17,7 +17,7 @@ const EnvSchema = z.object({
 export const env = EnvSchema.parse(process.env);
 
 /** Recursive glob over every parquet file the CUR 2.0 export has written. */
-export const curParquetGlob = `s3://${env.CUR_S3_BUCKET}/${env.CUR_S3_PREFIX.replace(
-  /\/+$/,
-  "",
-)}/**/*.parquet`;
+const prefix = env.CUR_S3_PREFIX.replace(/^\/+|\/+$/g, "");
+export const curParquetGlob = prefix
+  ? `s3://${env.CUR_S3_BUCKET}/${prefix}/**/*.parquet`
+  : `s3://${env.CUR_S3_BUCKET}/**/*.parquet`;

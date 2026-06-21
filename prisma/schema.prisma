@@ -43,12 +43,12 @@ model BillingLineItem {
 
   // ── Service / product ──
   /// AWS service code, e.g. "AmazonEC2", "AmazonRDS", "AmazonS3".
-  serviceCode String  @map("service_code")
+  serviceCode      String  @map("service_code")
   /// Friendly service name, e.g. "Amazon Elastic Compute Cloud".
-  serviceName String? @map("service_name")
+  serviceName      String? @map("service_name")
   /// Coarse category for "compute vs storage vs database" questions:
   /// compute | storage | database | network | analytics | ml | other.
-  serviceGroup String @map("service_group")
+  serviceGroup     String  @map("service_group")
   /// CUR product family, e.g. "Compute Instance", "Storage", "Database Instance".
   productFamily    String? @map("product_family")
   /// AWS region, e.g. "us-east-1".
@@ -87,8 +87,9 @@ model BillingLineItem {
   tags        Json?   @map("tags") @db.JsonB
 
   // ── Lineage ──
-  ingestionRunId String   @map("ingestion_run_id")
-  ingestedAt     DateTime @default(now()) @map("ingested_at") @db.Timestamptz(3)
+  ingestionRunId String       @map("ingestion_run_id")
+  ingestionRun   IngestionRun @relation(fields: [ingestionRunId], references: [id])
+  ingestedAt     DateTime     @default(now()) @map("ingested_at") @db.Timestamptz(3)
 
   @@index([usageStart])
   @@index([usageDate])
@@ -101,19 +102,26 @@ model BillingLineItem {
   @@map("billing_line_item")
 }
 
+/// Lifecycle status of an ETL load.
+enum IngestionStatus {
+  running
+  success
+  failed
+}
+
 /// Bookkeeping for each ETL load, so the agent/alerts can reason about freshness.
 model IngestionRun {
-  id             String    @id @default(uuid())
-  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
-  /// running | success | failed
-  status         String    @default("running")
+  id             String            @id @default(uuid())
+  startedAt      DateTime          @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt    DateTime?         @map("completed_at") @db.Timestamptz(3)
+  status         IngestionStatus   @default(running)
   /// The S3 source glob that was read.
   source         String
-  rowsLoaded     BigInt    @default(0) @map("rows_loaded")
+  rowsLoaded     BigInt            @default(0) @map("rows_loaded")
   /// Billing periods touched by this run, e.g. ["2026-05", "2026-06"].
-  billingPeriods String[]  @map("billing_periods")
+  billingPeriods String[]          @map("billing_periods")
   error          String?
+  lineItems      BillingLineItem[]
 
   @@map("ingestion_run")
 }
