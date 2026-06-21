@@ -1,0 +1,127 @@
+// Cost-bird — normalized AWS billing schema (POC).
+//
+// Design notes:
+//  - One wide "billing_line_item" fact table (one row per CUR line item), kept
+//    deliberately denormalized and human-readable so the NL→SQL agent can write
+//    correct SQL against it without joins.
+//  - Postgres for the POC; the same schema migrates to ClickHouse later.
+//  - Costs use Decimal to avoid floating-point drift on money.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+// Prisma 7: connection URLs live in prisma.config.ts (migrations) and the
+// PrismaClient driver adapter (runtime), not here.
+datasource db {
+  provider = "postgresql"
+}
+
+/// One line item from the AWS Cost & Usage Report (CUR 2.0), normalized.
+/// This is the single source of truth the cost agent queries.
+model BillingLineItem {
+  id BigInt @id @default(autoincrement())
+
+  // ── Identity & time ──
+  /// CUR identity/line_item_id — unique per line within a billing period.
+  lineItemId    String   @map("line_item_id")
+  /// First day of the billing month (e.g. 2026-06-01).
+  billingPeriod DateTime @map("billing_period") @db.Date
+  /// When the metered usage started.
+  usageStart    DateTime @map("usage_start") @db.Timestamptz(3)
+  /// When the metered usage ended.
+  usageEnd      DateTime @map("usage_end") @db.Timestamptz(3)
+  /// Calendar date of usage_start — convenient for daily grouping.
+  usageDate     DateTime @map("usage_date") @db.Date
+
+  // ── Account ──
+  /// The management/payer account that gets billed.
+  payerAccountId String @map("payer_account_id")
+  /// The member account that actually incurred the usage.
+  usageAccountId String @map("usage_account_id")
+
+  // ── Service / product ──
+  /// AWS service code, e.g. "AmazonEC2", "AmazonRDS", "AmazonS3".
+  serviceCode      String  @map("service_code")
+  /// Friendly service name, e.g. "Amazon Elastic Compute Cloud".
+  serviceName      String? @map("service_name")
+  /// Coarse category for "compute vs storage vs database" questions:
+  /// compute | storage | database | network | analytics | ml | other.
+  serviceGroup     String  @map("service_group")
+  /// CUR product family, e.g. "Compute Instance", "Storage", "Database Instance".
+  productFamily    String? @map("product_family")
+  /// AWS region, e.g. "us-east-1".
+  region           String? @map("region")
+  /// Availability zone, e.g. "us-east-1a".
+  availabilityZone String? @map("availability_zone")
+  /// ARN or resource id the cost is attributed to (when present).
+  resourceId       String? @map("resource_id")
+
+  // ── Charge detail ──
+  /// CUR line_item_type: Usage | Tax | Credit | Refund | Fee | DiscountedUsage | SavingsPlanCoveredUsage ...
+  chargeType  String  @map("charge_type")
+  /// Usage type code, e.g. "BoxUsage:t3.medium".
+  usageType   String? @map("usage_type")
+  /// API operation, e.g. "RunInstances".
+  operation   String? @map("operation")
+  /// Human-readable line description.
+  description String? @map("description")
+
+  // ── Cost & usage ──
+  /// Metered quantity (e.g. instance-hours, GB-months).
+  usageAmount   Decimal @map("usage_amount") @db.Decimal(24, 8)
+  /// Unblended cost in `currency` — the primary spend figure.
+  unblendedCost Decimal @map("unblended_cost") @db.Decimal(24, 8)
+  /// Unit for usage_amount, e.g. "Hrs", "GB-Mo".
+  pricingUnit   String? @map("pricing_unit")
+  /// ISO currency code, e.g. "USD".
+  currency      String  @map("currency")
+
+  // ── Layer 2 enrichment ──
+  /// Environment derived from resource tags: prod | staging | dev | unknown.
+  environment String? @map("environment")
+  /// Owning team derived from resource tags / manual mapping.
+  team        String? @map("team")
+  /// Full resource-tag map, kept for ad-hoc attribution questions.
+  tags        Json?   @map("tags") @db.JsonB
+
+  // ── Lineage ──
+  ingestionRunId String       @map("ingestion_run_id")
+  ingestionRun   IngestionRun @relation(fields: [ingestionRunId], references: [id])
+  ingestedAt     DateTime     @default(now()) @map("ingested_at") @db.Timestamptz(3)
+
+  @@index([usageStart])
+  @@index([usageDate])
+  @@index([billingPeriod])
+  @@index([serviceCode])
+  @@index([serviceGroup])
+  @@index([usageAccountId])
+  @@index([environment])
+  @@index([team])
+  @@map("billing_line_item")
+}
+
+/// Lifecycle status of an ETL load.
+enum IngestionStatus {
+  running
+  success
+  failed
+}
+
+/// Bookkeeping for each ETL load, so the agent/alerts can reason about freshness.
+model IngestionRun {
+  id             String            @id @default(uuid())
+  startedAt      DateTime          @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt    DateTime?         @map("completed_at") @db.Timestamptz(3)
+  status         IngestionStatus   @default(running)
+  /// The S3 source glob that was read.
+  source         String
+  rowsLoaded     BigInt            @default(0) @map("rows_loaded")
+  /// Billing periods touched by this run, e.g. ["2026-05", "2026-06"].
+  billingPeriods String[]          @map("billing_periods")
+  error          String?
+  lineItems      BillingLineItem[]
+
+  @@map("ingestion_run")
+}
