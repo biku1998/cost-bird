@@ -73,14 +73,19 @@ cost-bird/                  ← Next.js app at root (Vercel builds this)
   AWS, Anthropic, Slack), Vercel-ready. _Done on branch `chore/single-nextjs-foundation`;
   verified install/generate/typecheck/build/migrate/read-only-role._
 
-- [ ] **CP1 — Data model (Postgres + Prisma)** → `01-data-model.md`
-  Normalized `billing_line_item` + `ingestion_run` schema (NL→SQL friendly),
-  migrations applied, read-only role provisioned, synthetic seed for demos.
+- [x] **CP1 — Data model (Postgres + Prisma)** → folded into CP0 + CP2
+  Schema (`billing_line_item` + `ingestion_run`), migrations, and read-only role
+  already shipped in CP0. **Synthetic seed skipped** — real CUR data is already in S3
+  (286k rows). A data-profiling pass drove NL→SQL schema improvements now folded into
+  CP2 (`charge_category`, `billing_month`, populated `service_name`/`service_group`,
+  `global`/`untagged` defaults).
 
-- [ ] **CP2 — ETL (CUR 2.0 → Postgres)** → `02-etl.md`
-  DuckDB reads Parquet from S3, normalizes + enriches (service group, environment,
-  team), loads Postgres idempotently, records an ingestion run. Validate column
-  mapping against the real export once data lands.
+- [x] **CP2 — ETL (CUR 2.0 → Postgres)** → `02-etl.md`
+  DuckDB reads Parquet from S3, normalizes + enriches, idempotently loads Postgres
+  (replace-by-billing-period), records an ingestion run. Includes the small additive
+  migration + the charge-type cost semantics (net bill = SUM of all charge types).
+  _Done on branch `feat/etl`; loaded 286,389 rows for 2026-06, total $6,217.20
+  (exact parity); idempotency + read-only access verified._
 
 - [ ] **CP3 — NL→SQL agent (Mastra)** → `03-agent.md`
   Mastra agent on Sonnet 4.6 with a guarded SQL-execution tool over the read-only
@@ -99,12 +104,16 @@ cost-bird/                  ← Next.js app at root (Vercel builds this)
 
 ## Current status (2026-06-21)
 
-- **CP0 done** on branch `chore/single-nextjs-foundation`: single Next.js project at
-  root, Prisma 7 (pg driver adapter + prisma.config.ts), local Docker Postgres,
-  initial migration, read-only role. Build + typecheck green. **PR open → `main`**
-  (origin `biku1998/cost-bird`), in review.
-- `.env` has AWS creds + CUR S3 bucket/prefix + region (`us-east-1`); Anthropic +
-  Slack keys still blank (needed at CP3 / CP5).
+- **CP0 merged** to `main` (single Next.js project, Prisma 7 + pg adapter, local Docker
+  Postgres, schema + migrations, read-only role).
+- **CP1 closed** — schema/migrations/role were already in CP0; synthetic seed skipped
+  because real CUR data is in S3. Profiled the real data (286k rows, $6,217, 25
+  services, 1 account, tags ~0.7%) and captured NL→SQL schema improvements in `02-etl.md`.
+- **CP2 done** on branch `feat/etl`: DuckDB ETL loads 286,389 rows for 2026-06
+  ($6,217.20, exact parity); `charge_category`/`service_group`/`service_name` populated,
+  `global`/`untagged` defaults applied, idempotency + read-only access verified.
+- `.env` has AWS creds + CUR S3 bucket/prefix; Anthropic + Slack keys still blank
+  (needed at CP3 / CP5).
 
-> Next: land the CP0 PR, then write `01-data-model.md` and start CP1 (the schema is
-> already drafted; CP1 formalizes + seeds it).
+> Next: commit/PR CP2, then CP3 — the Mastra NL→SQL agent over the read-only role, with
+> a schema card carrying the cost-summation rule + tag sparsity.

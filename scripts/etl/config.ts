@@ -12,9 +12,15 @@ const EnvSchema = z.object({
   CUR_S3_BUCKET: z.string().min(1),
   CUR_S3_PREFIX: z.string().default(""),
   DATABASE_URL: z.string().min(1),
+  // Direct (non-pooled) connection used by DuckDB's postgres extension for the
+  // bulk load. Falls back to DATABASE_URL (identical for local Docker).
+  DIRECT_URL: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);
+
+/** Non-pooled Postgres connection for the bulk ETL write. */
+export const directDbUrl = env.DIRECT_URL ?? env.DATABASE_URL;
 
 /** Recursive glob over every parquet file the CUR 2.0 export has written. */
 const prefix = env.CUR_S3_PREFIX.replace(/^\/+|\/+$/g, "");
